@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Admin Dashboard - 3D Print Lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="main-header">
+            <div>
+                <h1 id="dashboard-title">Lab Admin Dashboard</h1>
+            </div>
+            <div class="user-profile" style="display: flex; align-items: center; gap: 1rem;">
+                <div>
+                    <i class="fa-solid fa-user-shield" style="color: var(--success);"></i>
+                    <span id="user-name">Lab Manager</span>
+                </div>
+                <a href="/logout" class="btn btn-danger" style="text-decoration: none; padding: 0.25rem 0.75rem; font-size: 0.85rem;"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+            </div>
+        </header>
+
+        <main id="lab-dashboard" class="dashboard active">
+            <div class="dashboard-grid">
+                <section class="card glass-card col-span-2">
+                    <div class="card-header">
+                        <h2><i class="fa-solid fa-print"></i> 3D Printer Status (Controls)</h2>
+                        <span class="live-indicator"><span class="dot"></span>Live Sync</span>
+                    </div>
+                    <div class="printer-grid" id="lab-printer-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <section class="card glass-card action-card" onclick="document.querySelector('.data-table').scrollIntoView({behavior: 'smooth'})">
+                    <i class="fa-solid fa-list card-icon"></i>
+                    <h3>View All Submissions</h3>
+                </section>
+
+                <section class="card glass-card action-card" onclick="document.querySelector('.data-table').scrollIntoView({behavior: 'smooth'})">
+                    <i class="fa-solid fa-check-to-slot card-icon"></i>
+                    <h3>Review & Decision</h3>
+                </section>
+
+                <section class="card glass-card action-card" onclick="document.querySelector('.data-table').scrollIntoView({behavior: 'smooth'})">
+                    <i class="fa-solid fa-tasks card-icon"></i>
+                    <h3>Job Queue & History</h3>
+                </section>
+
+                <section class="card glass-card action-card" onclick="openSmsModal()">
+                    <i class="fa-solid fa-paper-plane card-icon"></i>
+                    <h3>Send Message (SMS)</h3>
+                </section>
+            </div>
+
+            <section class="card glass-card mt-4">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-list-check"></i> Pending Reviews & Active Jobs</h2>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Student</th>
+                                <th>File</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lab-job-queue">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Review Modal -->
+    <div class="modal" id="review-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Review Submission <span id="review-job-id"></span></h2>
+                <button class="close-btn" onclick="closeReviewModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="review-details" id="review-details">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="review-actions mt-4" style="display:flex; gap:10px; justify-content:center;">
+                    <button class="btn btn-danger" onclick="decideJob('rejected')"><i class="fa-solid fa-xmark"></i> Reject</button>
+                    <button class="btn btn-success" onclick="decideJob('approved')"><i class="fa-solid fa-check"></i> Approve</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMS Modal -->
+    <div class="modal" id="sms-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Send SMS to Students</h2>
+                <button class="close-btn" onclick="closeSmsModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="sms-form" onsubmit="sendSms(event)">
+                    <div class="form-group">
+                        <label>Job ID (Optional, to target specific student)</label>
+                        <input type="text" id="sms-job-id" placeholder="e.g. #1023">
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea id="sms-message" required placeholder="Type your message here..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full"><i class="fa-solid fa-paper-plane"></i> Send Message</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

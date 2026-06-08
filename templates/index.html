@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Login - 3D Print Lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container login-container">
+        <div class="card glass-card login-card">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <i class="fa-solid fa-graduation-cap" style="font-size: 3rem; color: var(--primary);"></i>
+                <h2 class="mt-4">Student Portal</h2>
+                <p class="subtitle">Please enter your details to access the dashboard</p>
+            </div>
+            
+            <form action="/" method="POST">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" name="name" required placeholder="Md Abid">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" name="phone" required placeholder="+91 12345 67890">
+                </div>
+                <button type="submit" class="btn btn-primary w-full" style="justify-content: center; font-size: 1.1rem; padding: 0.75rem;">Login to Dashboard</button>
+            </form>
+            
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="/admin_login" class="subtitle" style="text-decoration: none; color: var(--text-muted);"><i class="fa-solid fa-lock"></i> Lab Admin Access</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

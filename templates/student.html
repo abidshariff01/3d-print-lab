@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - 3D Print Lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="main-header">
+            <div>
+                <h1 id="dashboard-title">Student Dashboard</h1>
+            </div>
+            <div class="user-profile" style="display: flex; align-items: center; gap: 1rem;">
+                <div>
+                    <i class="fa-solid fa-circle-user"></i>
+                    <span id="user-name">Welcome, {{ name }}</span>
+                </div>
+                <a href="/logout" class="btn btn-danger" style="text-decoration: none; padding: 0.25rem 0.75rem; font-size: 0.85rem;"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+            </div>
+        </header>
+
+        <main id="student-dashboard" class="dashboard active">
+            <div class="dashboard-grid">
+                <section class="card glass-card col-span-2">
+                    <div class="card-header">
+                        <h2><i class="fa-solid fa-print"></i> Live 3D Printer Status</h2>
+                        <span class="live-indicator"><span class="dot"></span>Live Sync</span>
+                    </div>
+                    <div class="printer-grid" id="student-printer-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <section class="card glass-card action-card upload-card" onclick="openUploadModal()">
+                    <i class="fa-solid fa-upload card-icon"></i>
+                    <h3>Upload 3D File</h3>
+                    <p>(STL/OBJ/etc.)</p>
+                </section>
+
+                <section class="card glass-card action-card" onclick="document.querySelector('.data-table').scrollIntoView({behavior: 'smooth'})">
+                    <i class="fa-solid fa-file-invoice card-icon"></i>
+                    <h3>View My Submissions</h3>
+                    <p>Check Status</p>
+                </section>
+
+                <section class="card glass-card action-card messages-card" onclick="openMessagesModal()">
+                    <i class="fa-solid fa-comment-sms card-icon"></i>
+                    <h3>Messages</h3>
+                    <p>SMS Status Notifications</p>
+                    <span class="badge" id="student-msg-badge">0</span>
+                </section>
+
+                <section class="card glass-card action-card" onclick="openGuidelinesModal()">
+                    <i class="fa-solid fa-circle-info card-icon"></i>
+                    <h3>Lab Guidelines</h3>
+                    <p>& Instructions</p>
+                </section>
+            </div>
+
+            <section class="card glass-card mt-4">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-list-check"></i> Recent Submissions</h2>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>File Name</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-submissions-list">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="upload-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Upload 3D Print Request</h2>
+                <button class="close-btn" onclick="closeUploadModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="upload-form" onsubmit="submitJob(event)">
+                    <!-- Name and Phone removed: automatically retrieved from session securely -->
+                    <div class="form-group">
+                        <label>3D File (STL only)</label>
+                        <input type="file" id="upload-file" required accept=".stl">
+                    </div>
+                    <div class="form-group">
+                        <label>Material & Notes</label>
+                        <textarea id="upload-notes" placeholder="PLA, White, 20% Infill..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Modal -->
+    <div class="modal" id="messages-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Messages (SMS)</h2>
+                <button class="close-btn" onclick="closeMessagesModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="messages-list" style="max-height: 300px; overflow-y: auto;">
+                <!-- Messages -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Guidelines Modal -->
+    <div class="modal" id="guidelines-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Lab Guidelines</h2>
+                <button class="close-btn" onclick="closeGuidelinesModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <ul style="padding-left: 20px; line-height: 1.6;">
+                    <li>Only .stl files are allowed.</li>
+                    <li>Ensure your model is properly scaled.</li>
+                    <li>Jobs will be reviewed before printing.</li>
+                    <li>You will receive SMS notifications for status updates.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <script src="{{ url_for('static', filename='student.js') }}"></script>
+</body>
+</html>
