@@ -14,6 +14,17 @@ socketio = SocketIO(app, manage_session=False, async_mode='threading')
 ADMIN_PASSWORD = 'L4b$M4n4g3r!9XqW2z'
 DB_PATH = os.path.join(os.path.dirname(__file__), 'printlab.db')
 
+import uuid
+from werkzeug.utils import secure_filename
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+@app.route('/uploads/<filename>')
+def serve_upload(filename):
+    from flask import send_from_directory
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 # ─── DATABASE SETUP ───────────────────────────────────────────────────────────
 
 def get_db():
@@ -58,6 +69,10 @@ def init_db():
             FOREIGN KEY (student_id) REFERENCES students(id)
         );
     ''')
+    try:
+        conn.execute('SELECT saved_file FROM jobs LIMIT 1')
+    except sqlite3.OperationalError:
+        conn.execute('ALTER TABLE jobs ADD COLUMN saved_file TEXT')
     conn.commit()
     conn.close()
 
@@ -196,20 +211,42 @@ def get_my_jobs():
 def submit_job():
     sid = session.get('student_id')
     if not sid: return jsonify({'error': 'Unauthorized'}), 401
-    data = request.get_json()
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'})
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'})
+        
+    if not file.filename.lower().endswith('.stl'):
+        return jsonify({'success': False, 'error': 'Only .stl files are allowed'})
+        
+    filename = secure_filename(file.filename)
+    unique_prefix = str(uuid.uuid4())[:8]
+    saved_filename = f"{unique_prefix}_{filename}"
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], saved_filename))
+    
+    project_name = request.form.get('project_name', filename)
+    material = request.form.get('material', 'PLA')
+    notes = request.form.get('notes', '')
+    
     job_id = f"#{random.randint(1000, 9999)}"
     conn = get_db()
     while conn.execute('SELECT id FROM jobs WHERE job_id=?', (job_id,)).fetchone():
         job_id = f"#{random.randint(1000, 9999)}"
-    conn.execute('INSERT INTO jobs (job_id,student_id,file_name,material,layer_height,infill,notes) VALUES (?,?,?,?,?,?,?)',
-                 (job_id, sid, data.get('file', 'unknown.stl'), data.get('material', 'PLA'),
-                  data.get('layer_height', '0.2mm'), data.get('infill', '20%'), data.get('notes', '')))
+        
+    conn.execute('''
+        INSERT INTO jobs (job_id, student_id, file_name, material, layer_height, infill, notes, saved_file) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (job_id, sid, project_name, material, '0.2mm', '20%', notes, saved_filename))
+    
     conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
                  (sid, 'Job Submitted', f"Your job {job_id} has been submitted and is awaiting review."))
     conn.commit()
     student = conn.execute('SELECT name FROM students WHERE id=?', (sid,)).fetchone()
     conn.close()
-    socketio.emit('notification', {'title': 'New Job', 'message': f"{student['name']} submitted {data.get('file', 'a file')}", 'target': 'admin'})
+    
+    socketio.emit('notification', {'title': 'New Job', 'message': f"{student['name']} submitted {project_name}", 'target': 'admin'})
     socketio.emit('jobs_updated')
     return jsonify({'success': True, 'job_id': job_id})
 
@@ -264,21 +301,30 @@ def admin_get_jobs():
     conn.close()
     return jsonify([{'id': r['job_id'], 'student': r['student_name'], 'phone': r['student_phone'] or '',
                      'file': r['file_name'], 'material': r['material'], 'status': r['status'],
-                     'date': r['date'][:10], 'printer': r['printer_assigned'] or 'Not assigned'} for r in rows])
+                     'date': r['date'][:10], 'printer': r['printer_assigned'] or 'Not assigned',
+                     'notes': r['notes'] or '', 'saved_file': r['saved_file'] or ''} for r in rows])
 
 @app.route('/api/admin/jobs/<job_id>/review', methods=['POST'])
 def admin_review_job(job_id):
     if not session.get('is_admin'): return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json()
     decision = data.get('decision')
+    comment = data.get('comment', '').strip()
+    
     conn = get_db()
     conn.execute('UPDATE jobs SET status=? WHERE job_id=?', (decision, job_id))
     job = conn.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
+    
+    if decision == 'rejected' and comment:
+        msg = f"Your job {job_id} has been REJECTED. Reason: {comment}"
+    else:
+        msg = f"Your job {job_id} has been APPROVED."
+        
     conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
-                 (job['student_id'], 'Job Update', f"Your job {job_id} has been {decision.upper()}."))
+                 (job['student_id'], 'Job Update', msg))
     conn.commit()
     conn.close()
-    socketio.emit('notification', {'title': 'Job Update', 'message': f"Job {job_id} has been {decision.upper()}.", 'target': 'student'})
+    socketio.emit('notification', {'title': 'Job Update', 'message': msg, 'target': 'student'})
     socketio.emit('jobs_updated')
     return jsonify({'success': True})
 
@@ -298,6 +344,36 @@ def admin_assign_job(job_id):
     free_printer['currentJob'] = job_id
     socketio.emit('state_update', {'printers': printers})
     socketio.emit('jobs_updated')
+    return jsonify({'success': True})
+
+@app.route('/api/admin/jobs/<job_id>/complete', methods=['POST'])
+def admin_complete_job(job_id):
+    if not session.get('is_admin'): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json()
+    cost = data.get('cost', '0')
+    conn = get_db()
+    job = conn.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
+    if not job:
+        conn.close()
+        return jsonify({'error': 'Job not found'}), 404
+        
+    conn.execute('UPDATE jobs SET status="completed", cost=? WHERE job_id=?', (cost, job_id))
+    
+    msg = f"Your 3d printed model is printed. You can come and collect it in Idea lab and Rs. {cost} is the amount to be paid."
+    conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
+                 (job['student_id'], 'Model Printed', msg))
+    conn.commit()
+    conn.close()
+    
+    for p in printers:
+        if p['currentJob'] == job_id:
+            p['status'] = 'free'
+            p['currentJob'] = None
+            break
+            
+    socketio.emit('state_update', {'printers': printers})
+    socketio.emit('jobs_updated')
+    socketio.emit('notification', {'title': 'Model Printed', 'message': msg, 'target': 'student'})
     return jsonify({'success': True})
 
 # ─── WEBSOCKETS ───────────────────────────────────────────────────────────────

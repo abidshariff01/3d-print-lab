@@ -202,15 +202,15 @@ async function submitJob() {
         ? `[Preferred: ${preferredPrinter}] ${notesInput}`.trim()
         : notesInput;
 
-    const body = {
-        file: document.getElementById('job-project-name').value || fileName,
-        material: document.getElementById('job-material').value,
-        notes: notes
-    };
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('project_name', document.getElementById('job-project-name').value || fileName);
+    formData.append('material', document.getElementById('job-material').value);
+    formData.append('notes', notes);
 
     const res = await fetch('/api/student/jobs/submit', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
+        method: 'POST',
+        body: formData
     });
     const data = await res.json();
     if (data.success) {
