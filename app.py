@@ -1,57 +1,69 @@
+import sqlite3
+import os
+import datetime
+import random
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_socketio import SocketIO, emit
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-import datetime
-import os
-import random
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'c28x9VbN$mP!qWz3rTyU&iOk'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///printlab.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
 socketio = SocketIO(app, manage_session=False, async_mode='threading')
 
 ADMIN_PASSWORD = 'L4b$M4n4g3r!9XqW2z'
+DB_PATH = os.path.join(os.path.dirname(__file__), 'printlab.db')
 
-# ─── DATABASE MODELS ───────────────────────────────────────────────────────────
+# ─── DATABASE SETUP ───────────────────────────────────────────────────────────
 
-class Student(db.Model):
-    id         = db.Column(db.Integer, primary_key=True)
-    name       = db.Column(db.String(100), nullable=False)
-    username   = db.Column(db.String(50),  unique=True, nullable=False)
-    email      = db.Column(db.String(120), unique=True, nullable=False)
-    phone      = db.Column(db.String(20))
-    department = db.Column(db.String(100))
-    password_hash = db.Column(db.String(200), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-class Job(db.Model):
-    id          = db.Column(db.Integer, primary_key=True)
-    job_id      = db.Column(db.String(20), unique=True, nullable=False)
-    student_id  = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
-    student     = db.relationship('Student', backref='jobs')
-    file_name   = db.Column(db.String(200))
-    material    = db.Column(db.String(50))
-    layer_height= db.Column(db.String(50))
-    infill      = db.Column(db.String(20))
-    notes       = db.Column(db.Text)
-    status      = db.Column(db.String(20), default='pending')
-    date        = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    printer_assigned = db.Column(db.String(100))
-    cost        = db.Column(db.Float)
+def init_db():
+    conn = get_db()
+    conn.executescript('''
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            phone TEXT,
+            department TEXT,
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT UNIQUE NOT NULL,
+            student_id INTEGER NOT NULL,
+            file_name TEXT,
+            material TEXT,
+            layer_height TEXT,
+            infill TEXT,
+            notes TEXT,
+            status TEXT DEFAULT 'pending',
+            date TEXT DEFAULT (datetime('now')),
+            printer_assigned TEXT,
+            cost REAL,
+            FOREIGN KEY (student_id) REFERENCES students(id)
+        );
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            title TEXT,
+            message TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (student_id) REFERENCES students(id)
+        );
+    ''')
+    conn.commit()
+    conn.close()
 
-class Notification(db.Model):
-    id         = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
-    title      = db.Column(db.String(100))
-    message    = db.Column(db.Text)
-    read       = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+init_db()
 
-# ─── PRINTER STATE (in-memory, volatile) ───────────────────────────────────────
+# ─── PRINTER STATE ────────────────────────────────────────────────────────────
 
 printers = [
     {"id": 1, "name": "Printer 1", "model": "Ender 3 Pro · FDM", "materials": "PLA · ABS · PETG", "max_size": "Max: 220×220×250mm", "status": "free", "currentJob": None},
@@ -60,10 +72,7 @@ printers = [
     {"id": 4, "name": "Printer 4", "model": "Prusa i3 MK3 · FDM", "materials": "PLA · ABS · PETG · TPU", "max_size": "Max: 250×210×210mm", "status": "free", "currentJob": None}
 ]
 
-with app.app_context():
-    db.create_all()
-
-# ─── STUDENT AUTH ROUTES ───────────────────────────────────────────────────────
+# ─── ROUTES ──────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -73,49 +82,54 @@ def index():
 
 @app.route('/api/login', methods=['POST'])
 def do_login():
-    data     = request.get_json()
-    email    = data.get('email', '').strip().lower()
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
     password = data.get('password', '')
-    student  = Student.query.filter_by(email=email).first()
-    if student and check_password_hash(student.password_hash, password):
-        session['student_id']    = student.id
-        session['student_name']  = student.name
-        session['student_phone'] = student.phone or ''
+    conn = get_db()
+    student = conn.execute('SELECT * FROM students WHERE email=?', (email,)).fetchone()
+    conn.close()
+    if student and check_password_hash(student['password_hash'], password):
+        session['student_id'] = student['id']
+        session['student_name'] = student['name']
+        session['student_phone'] = student['phone'] or ''
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'Invalid email or password'})
 
 @app.route('/api/register', methods=['POST'])
 def do_register():
-    data       = request.get_json()
-    name       = data.get('name', '').strip()
-    username   = data.get('username', '').strip()
-    email      = data.get('email', '').strip().lower()
-    phone      = data.get('phone', '').strip()
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip().lower()
+    phone = data.get('phone', '').strip()
     department = data.get('department', '').strip()
-    password   = data.get('password', '')
-
+    password = data.get('password', '')
     if not all([name, username, email, password]):
         return jsonify({'success': False, 'error': 'All fields are required'})
-    if Student.query.filter_by(email=email).first():
+    conn = get_db()
+    if conn.execute('SELECT id FROM students WHERE email=?', (email,)).fetchone():
+        conn.close()
         return jsonify({'success': False, 'error': 'Email already registered'})
-    if Student.query.filter_by(username=username).first():
+    if conn.execute('SELECT id FROM students WHERE username=?', (username,)).fetchone():
+        conn.close()
         return jsonify({'success': False, 'error': 'Username already taken'})
-
-    student = Student(name=name, username=username, email=email,
-                      phone=phone, department=department,
-                      password_hash=generate_password_hash(password))
-    db.session.add(student)
-    db.session.commit()
-    session['student_id']    = student.id
-    session['student_name']  = student.name
-    session['student_phone'] = student.phone or ''
+    conn.execute('INSERT INTO students (name,username,email,phone,department,password_hash) VALUES (?,?,?,?,?,?)',
+                 (name, username, email, phone, department, generate_password_hash(password)))
+    conn.commit()
+    student = conn.execute('SELECT * FROM students WHERE email=?', (email,)).fetchone()
+    conn.close()
+    session['student_id'] = student['id']
+    session['student_name'] = student['name']
+    session['student_phone'] = student['phone'] or ''
     return jsonify({'success': True})
 
 @app.route('/student')
 def student_dashboard():
     if not session.get('student_id'):
         return redirect(url_for('index'))
-    student = Student.query.get(session['student_id'])
+    conn = get_db()
+    student = conn.execute('SELECT * FROM students WHERE id=?', (session['student_id'],)).fetchone()
+    conn.close()
     return render_template('student.html', student=student)
 
 @app.route('/logout')
@@ -123,96 +137,96 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# ─── STUDENT API ───────────────────────────────────────────────────────────────
+# ─── STUDENT API ──────────────────────────────────────────────────────────────
 
 @app.route('/api/student/profile', methods=['GET', 'POST'])
 def student_profile():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    student = Student.query.get(session['student_id'])
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
     if request.method == 'POST':
         data = request.get_json()
-        student.name       = data.get('name', student.name)
-        student.username   = data.get('username', student.username)
-        student.phone      = data.get('phone', student.phone)
-        student.department = data.get('department', student.department)
-        db.session.commit()
-        session['student_name'] = student.name
+        conn.execute('UPDATE students SET name=?,username=?,phone=?,department=? WHERE id=?',
+                     (data.get('name'), data.get('username'), data.get('phone'), data.get('department'), sid))
+        conn.commit()
+        session['student_name'] = data.get('name')
+        conn.close()
         return jsonify({'success': True})
-    return jsonify({'name': student.name, 'username': student.username,
-                    'email': student.email, 'phone': student.phone or '',
-                    'department': student.department or ''})
+    s = conn.execute('SELECT * FROM students WHERE id=?', (sid,)).fetchone()
+    conn.close()
+    return jsonify({'name': s['name'], 'username': s['username'], 'email': s['email'],
+                    'phone': s['phone'] or '', 'department': s['department'] or ''})
 
 @app.route('/api/student/change_password', methods=['POST'])
 def change_password():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    student = Student.query.get(session['student_id'])
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json()
-    if not check_password_hash(student.password_hash, data.get('current_password', '')):
+    conn = get_db()
+    s = conn.execute('SELECT * FROM students WHERE id=?', (sid,)).fetchone()
+    if not check_password_hash(s['password_hash'], data.get('current_password', '')):
+        conn.close()
         return jsonify({'success': False, 'error': 'Current password is incorrect'})
-    student.password_hash = generate_password_hash(data.get('new_password', ''))
-    db.session.commit()
+    conn.execute('UPDATE students SET password_hash=? WHERE id=?', (generate_password_hash(data.get('new_password', '')), sid))
+    conn.commit()
+    conn.close()
     return jsonify({'success': True})
 
 @app.route('/api/student/jobs')
 def get_my_jobs():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    jobs = Job.query.filter_by(student_id=session['student_id']).order_by(Job.date.desc()).all()
-    return jsonify([{'id': j.job_id, 'file': j.file_name, 'material': j.material,
-                     'status': j.status, 'date': j.date.strftime('%Y-%m-%d'),
-                     'printer': j.printer_assigned or 'Not assigned'} for j in jobs])
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    jobs = conn.execute('SELECT * FROM jobs WHERE student_id=? ORDER BY date DESC', (sid,)).fetchall()
+    conn.close()
+    return jsonify([{'id': j['job_id'], 'file': j['file_name'], 'material': j['material'],
+                     'status': j['status'], 'date': j['date'][:10],
+                     'printer': j['printer_assigned'] or 'Not assigned'} for j in jobs])
 
 @app.route('/api/student/jobs/submit', methods=['POST'])
 def submit_job():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json()
     job_id = f"#{random.randint(1000, 9999)}"
-    while Job.query.filter_by(job_id=job_id).first():
+    conn = get_db()
+    while conn.execute('SELECT id FROM jobs WHERE job_id=?', (job_id,)).fetchone():
         job_id = f"#{random.randint(1000, 9999)}"
-    job = Job(job_id=job_id, student_id=session['student_id'],
-              file_name=data.get('file', 'unknown.stl'),
-              material=data.get('material', 'PLA'),
-              layer_height=data.get('layer_height', '0.2mm (Standard)'),
-              infill=data.get('infill', '20%'),
-              notes=data.get('notes', ''))
-    db.session.add(job)
-
-    notif = Notification(student_id=session['student_id'],
-                         title='Job Submitted',
-                         message=f"Your job {job_id} ({data.get('file', '')}) has been submitted and is awaiting review.")
-    db.session.add(notif)
-    db.session.commit()
-
-    student = Student.query.get(session['student_id'])
-    socketio.emit('notification', {'title': 'New Job Submitted',
-                                   'message': f"{student.name} uploaded {data.get('file', 'a file')}.",
-                                   'target': 'admin'})
+    conn.execute('INSERT INTO jobs (job_id,student_id,file_name,material,layer_height,infill,notes) VALUES (?,?,?,?,?,?,?)',
+                 (job_id, sid, data.get('file', 'unknown.stl'), data.get('material', 'PLA'),
+                  data.get('layer_height', '0.2mm'), data.get('infill', '20%'), data.get('notes', '')))
+    conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
+                 (sid, 'Job Submitted', f"Your job {job_id} has been submitted and is awaiting review."))
+    conn.commit()
+    student = conn.execute('SELECT name FROM students WHERE id=?', (sid,)).fetchone()
+    conn.close()
+    socketio.emit('notification', {'title': 'New Job', 'message': f"{student['name']} submitted {data.get('file', 'a file')}", 'target': 'admin'})
     return jsonify({'success': True, 'job_id': job_id})
 
 @app.route('/api/student/notifications')
 def get_notifications():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    notifs = Notification.query.filter_by(student_id=session['student_id']).order_by(Notification.created_at.desc()).all()
-    return jsonify([{'id': n.id, 'title': n.title, 'message': n.message,
-                     'read': n.read, 'time': n.created_at.strftime('%b %d, %Y %H:%M')} for n in notifs])
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    notifs = conn.execute('SELECT * FROM notifications WHERE student_id=? ORDER BY created_at DESC', (sid,)).fetchall()
+    conn.close()
+    return jsonify([{'id': n['id'], 'title': n['title'], 'message': n['message'], 'time': n['created_at']} for n in notifs])
 
 @app.route('/api/student/notifications/clear', methods=['POST'])
 def clear_notifications():
-    if not session.get('student_id'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    Notification.query.filter_by(student_id=session['student_id']).delete()
-    db.session.commit()
+    sid = session.get('student_id')
+    if not sid: return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    conn.execute('DELETE FROM notifications WHERE student_id=?', (sid,))
+    conn.commit()
+    conn.close()
     return jsonify({'success': True})
 
 @app.route('/api/printers')
 def get_printers():
     return jsonify(printers)
 
-# ─── ADMIN ROUTES ──────────────────────────────────────────────────────────────
+# ─── ADMIN ───────────────────────────────────────────────────────────────────
 
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
@@ -232,52 +246,51 @@ def admin_dashboard():
 
 @app.route('/api/admin/jobs')
 def admin_get_jobs():
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    jobs = Job.query.order_by(Job.date.desc()).all()
-    return jsonify([{'id': j.job_id, 'student': j.student.name,
-                     'phone': j.student.phone or '', 'file': j.file_name,
-                     'material': j.material, 'status': j.status,
-                     'date': j.date.strftime('%Y-%m-%d'),
-                     'printer': j.printer_assigned or 'Not assigned'} for j in jobs])
+    if not session.get('is_admin'): return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db()
+    rows = conn.execute('''SELECT j.*, s.name as student_name, s.phone as student_phone
+                           FROM jobs j JOIN students s ON j.student_id=s.id
+                           ORDER BY j.date DESC''').fetchall()
+    conn.close()
+    return jsonify([{'id': r['job_id'], 'student': r['student_name'], 'phone': r['student_phone'] or '',
+                     'file': r['file_name'], 'material': r['material'], 'status': r['status'],
+                     'date': r['date'][:10], 'printer': r['printer_assigned'] or 'Not assigned'} for r in rows])
 
 @app.route('/api/admin/jobs/<job_id>/review', methods=['POST'])
 def admin_review_job(job_id):
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    job = Job.query.filter_by(job_id=job_id).first_or_404()
+    if not session.get('is_admin'): return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json()
-    job.status = data.get('decision')
-    msg = f"Your job {job_id} has been {job.status.upper()}."
-    notif = Notification(student_id=job.student_id, title='Job Update', message=msg)
-    db.session.add(notif)
-    db.session.commit()
-    socketio.emit('notification', {'title': 'Job Update', 'message': msg, 'target': 'student'})
+    decision = data.get('decision')
+    conn = get_db()
+    conn.execute('UPDATE jobs SET status=? WHERE job_id=?', (decision, job_id))
+    job = conn.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
+    conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
+                 (job['student_id'], 'Job Update', f"Your job {job_id} has been {decision.upper()}."))
+    conn.commit()
+    conn.close()
+    socketio.emit('notification', {'title': 'Job Update', 'message': f"Job {job_id} has been {decision.upper()}.", 'target': 'student'})
     socketio.emit('jobs_updated')
     return jsonify({'success': True})
 
 @app.route('/api/admin/jobs/<job_id>/assign', methods=['POST'])
 def admin_assign_job(job_id):
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    job = Job.query.filter_by(job_id=job_id).first_or_404()
+    if not session.get('is_admin'): return jsonify({'error': 'Unauthorized'}), 401
     free_printer = next((p for p in printers if p['status'] == 'free'), None)
-    if not free_printer:
-        return jsonify({'error': 'No free printers'}), 400
-    job.status = 'printing'
-    job.printer_assigned = free_printer['name']
+    if not free_printer: return jsonify({'error': 'No free printers'}), 400
+    conn = get_db()
+    conn.execute('UPDATE jobs SET status="printing", printer_assigned=? WHERE job_id=?', (free_printer['name'], job_id))
+    job = conn.execute('SELECT * FROM jobs WHERE job_id=?', (job_id,)).fetchone()
+    conn.execute('INSERT INTO notifications (student_id,title,message) VALUES (?,?,?)',
+                 (job['student_id'], 'Printing Started', f"Your job {job_id} is now printing on {free_printer['name']}."))
+    conn.commit()
+    conn.close()
     free_printer['status'] = 'occupied'
     free_printer['currentJob'] = job_id
-    msg = f"Your job {job_id} is now printing on {free_printer['name']}."
-    notif = Notification(student_id=job.student_id, title='Printing Started', message=msg)
-    db.session.add(notif)
-    db.session.commit()
     socketio.emit('state_update', {'printers': printers})
-    socketio.emit('notification', {'title': 'Printing Started', 'message': msg, 'target': 'student'})
     socketio.emit('jobs_updated')
     return jsonify({'success': True})
 
-# ─── WEBSOCKETS ────────────────────────────────────────────────────────────────
+# ─── WEBSOCKETS ───────────────────────────────────────────────────────────────
 
 @socketio.on('connect')
 def on_connect():
