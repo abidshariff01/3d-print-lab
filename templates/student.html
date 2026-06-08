@@ -3,144 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard - 3D Print Lab</title>
+    <title>Student Dashboard — 3D Print Lab</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.1/socket.io.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
 </head>
 <body>
-    <div class="app-container">
-        <header class="main-header">
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-icon"><i class="fa-solid fa-cube"></i></div>
+        <div>
+            <div class="brand-name">PrintLab</div>
+            <div class="brand-status"><span class="live-dot"></span>Live Sync</div>
+        </div>
+    </div>
+
+    <div class="sidebar-user">
+        <div class="user-avatar">{{ student.name[0].upper() }}</div>
+        <div>
+            <div class="user-name">{{ student.name }}</div>
+            <div class="user-role">Student</div>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-label">MAIN</div>
+        <a class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+            <i class="fa-solid fa-grid-2"></i> Dashboard
+        </a>
+        <a class="nav-item" data-page="upload" onclick="showPage('upload')">
+            <i class="fa-solid fa-upload"></i> Upload Design
+        </a>
+        <a class="nav-item" data-page="submissions" onclick="showPage('submissions')">
+            <i class="fa-solid fa-file-lines"></i> My Submissions
+            <span class="nav-badge" id="sub-badge" style="display:none"></span>
+        </a>
+        <a class="nav-item" data-page="printers" onclick="showPage('printers')">
+            <i class="fa-solid fa-print"></i> Printer Status
+        </a>
+
+        <div class="nav-label" style="margin-top:1.5rem">ACCOUNT</div>
+        <a class="nav-item" data-page="notifications" onclick="showPage('notifications')">
+            <i class="fa-solid fa-bell"></i> Notifications
+            <span class="nav-badge" id="notif-badge" style="display:none"></span>
+        </a>
+        <a class="nav-item" data-page="profile" onclick="showPage('profile')">
+            <i class="fa-solid fa-user"></i> Profile
+        </a>
+    </nav>
+
+    <a href="/logout" class="sidebar-signout">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+    </a>
+</aside>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main class="main-content">
+
+    <!-- DASHBOARD PAGE -->
+    <div id="page-dashboard" class="page active">
+        <div class="page-header">
+            <h1>Dashboard</h1>
+            <p>Welcome back, {{ student.name }}!</p>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background:rgba(249,115,22,0.15);color:#f97316"><i class="fa-solid fa-file-lines"></i></div>
+                <div class="stat-info"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Total Jobs</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:rgba(251,191,36,0.15);color:#fbbf24"><i class="fa-solid fa-clock"></i></div>
+                <div class="stat-info"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">Pending</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:rgba(34,197,94,0.15);color:#22c55e"><i class="fa-solid fa-print"></i></div>
+                <div class="stat-info"><div class="stat-num" id="stat-printing">0</div><div class="stat-label">Printing</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:rgba(59,130,246,0.15);color:#3b82f6"><i class="fa-solid fa-check-circle"></i></div>
+                <div class="stat-info"><div class="stat-num" id="stat-done">0</div><div class="stat-label">Completed</div></div>
+            </div>
+        </div>
+
+        <div class="section-card" style="margin-top:1.5rem">
+            <div class="section-card-header">
+                <h2>Live Printer Status</h2>
+                <span class="live-chip"><span class="live-dot"></span>Live</span>
+            </div>
+            <div class="printer-mini-grid" id="dash-printer-grid"></div>
+        </div>
+
+        <div class="section-card" style="margin-top:1.5rem">
+            <div class="section-card-header">
+                <h2>Recent Submissions</h2>
+                <button class="btn-orange-sm" onclick="showPage('upload')"><i class="fa-solid fa-plus"></i> New Upload</button>
+            </div>
+            <div id="dash-recent-jobs"><p class="empty-state-sm">No submissions yet.</p></div>
+        </div>
+    </div>
+
+    <!-- UPLOAD DESIGN PAGE -->
+    <div id="page-upload" class="page">
+        <div class="page-header">
+            <h1>Upload Design</h1>
+            <p>Submit your 3D file for lab review.</p>
+        </div>
+        <div class="upload-form-card">
+            <!-- Step 1 -->
+            <div class="step-block">
+                <div class="step-title"><i class="fa-solid fa-file-arrow-up"></i> Step 1 — Upload File</div>
+                <div class="drop-zone" id="drop-zone" onclick="document.getElementById('stl-file').click()">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size:2rem;color:#8b949e;margin-bottom:0.5rem"></i>
+                    <p>Drop your STL file here<br><span style="color:#8b949e;font-size:0.85rem">or click to browse</span></p>
+                    <input type="file" id="stl-file" accept=".stl" hidden onchange="handleFileSelect(this)">
+                </div>
+                <div id="file-selected" style="display:none;margin-top:0.75rem;padding:0.6rem 1rem;background:#0d1117;border:1px solid #f97316;border-radius:6px;font-size:0.9rem;color:#f97316">
+                    <i class="fa-solid fa-file-check"></i> <span id="file-name-display"></span>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step-block">
+                <div class="step-title"><i class="fa-solid fa-sliders"></i> Step 2 — Job Details</div>
+                <div class="form-group">
+                    <label>PROJECT / FILE NAME</label>
+                    <input type="text" id="job-project-name" placeholder="e.g. Gear Housing v2.stl">
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>MATERIAL</label>
+                        <select id="job-material">
+                            <option>PLA</option>
+                            <option>ABS</option>
+                            <option>PETG</option>
+                            <option>TPU</option>
+                            <option>Resin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>LAYER HEIGHT</label>
+                        <select id="job-layer">
+                            <option>0.1mm (Fine)</option>
+                            <option selected>0.2mm (Standard)</option>
+                            <option>0.3mm (Draft)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>INFILL %</label>
+                        <select id="job-infill">
+                            <option>10%</option>
+                            <option>15%</option>
+                            <option selected>20%</option>
+                            <option>30%</option>
+                            <option>50%</option>
+                            <option>100%</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>PREFERRED PRINTER</label>
+                        <select id="job-printer">
+                            <option>Any available</option>
+                            <option>Printer 1</option>
+                            <option>Printer 2</option>
+                            <option>Printer 3</option>
+                            <option>Printer 4</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>ADDITIONAL NOTES (OPTIONAL)</label>
+                    <textarea id="job-notes" rows="3" placeholder="Any special instructions, color preferences, etc."></textarea>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step-block">
+                <div class="step-title"><i class="fa-solid fa-mobile-screen"></i> Step 3 — Contact for SMS Updates</div>
+                <div class="form-group">
+                    <label>MOBILE NUMBER</label>
+                    <input type="tel" id="job-phone" value="{{ student.phone or '' }}" placeholder="+91 12345 67890">
+                </div>
+                <p style="font-size:0.8rem;color:#8b949e;margin-top:0.25rem">You'll receive SMS updates when approved, printing, and completed.</p>
+            </div>
+
+            <div id="upload-error" class="error-banner" style="display:none"></div>
+            <button class="btn-orange-full" onclick="submitJob()"><i class="fa-solid fa-paper-plane"></i> Submit Job Request</button>
+        </div>
+    </div>
+
+    <!-- MY SUBMISSIONS PAGE -->
+    <div id="page-submissions" class="page">
+        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
-                <h1 id="dashboard-title">Student Dashboard</h1>
+                <h1>My Submissions</h1>
+                <p>Only your design requests.</p>
             </div>
-            <div class="user-profile" style="display: flex; align-items: center; gap: 1rem;">
+            <button class="btn-orange-sm" onclick="showPage('upload')"><i class="fa-solid fa-plus"></i> New Upload</button>
+        </div>
+        <div class="section-card">
+            <div id="submissions-content">
+                <div class="empty-state">
+                    <i class="fa-solid fa-inbox" style="font-size:3rem;color:#30363d;margin-bottom:1rem"></i>
+                    <p>No submissions yet. Upload your first design!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINTER STATUS PAGE -->
+    <div id="page-printers" class="page">
+        <div class="page-header">
+            <h1>Printer Status</h1>
+            <p>Live status of all lab printers.</p>
+        </div>
+        <div class="printer-full-grid" id="full-printer-grid"></div>
+    </div>
+
+    <!-- NOTIFICATIONS PAGE -->
+    <div id="page-notifications" class="page">
+        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+                <h1>Notifications</h1>
+                <p>SMS and in-app updates for your jobs.</p>
+            </div>
+            <button class="btn-ghost" onclick="clearNotifications()">Clear all</button>
+        </div>
+        <div class="section-card">
+            <div id="notif-content">
+                <div class="empty-state">
+                    <i class="fa-solid fa-bell-slash" style="font-size:3rem;color:#30363d;margin-bottom:1rem"></i>
+                    <p>No notifications yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE PAGE -->
+    <div id="page-profile" class="page">
+        <div class="page-header">
+            <h1>My Profile</h1>
+            <p>Your account details.</p>
+        </div>
+        <div class="profile-card">
+            <div class="profile-avatar-row">
+                <div class="profile-avatar">{{ student.name[0].upper() }}</div>
                 <div>
-                    <i class="fa-solid fa-circle-user"></i>
-                    <span id="user-name">Welcome, {{ name }}</span>
+                    <div class="profile-name">{{ student.name }}</div>
+                    <div class="profile-sub">Student · {{ student.department or 'No department set' }}</div>
                 </div>
-                <a href="/logout" class="btn btn-danger" style="text-decoration: none; padding: 0.25rem 0.75rem; font-size: 0.85rem;"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
             </div>
-        </header>
+            <div class="form-group"><label>FULL NAME</label><input type="text" id="p-name" value="{{ student.name }}"></div>
+            <div class="form-group"><label>USERNAME</label><input type="text" id="p-username" value="{{ student.username }}"></div>
+            <div class="form-group"><label>EMAIL / MOBILE (FOR SMS)</label><input type="text" id="p-phone" value="{{ student.phone or '' }}"></div>
+            <div class="form-group"><label>DEPARTMENT</label><input type="text" id="p-dept" value="{{ student.department or '' }}"></div>
+            <div id="profile-msg" style="display:none;margin-bottom:0.75rem;font-size:0.85rem"></div>
+            <button class="btn-orange-sm" onclick="saveProfile()">Save Changes</button>
+        </div>
 
-        <main id="student-dashboard" class="dashboard active">
-            <div class="dashboard-grid">
-                <section class="card glass-card col-span-2">
-                    <div class="card-header">
-                        <h2><i class="fa-solid fa-print"></i> Live 3D Printer Status</h2>
-                        <span class="live-indicator"><span class="dot"></span>Live Sync</span>
-                    </div>
-                    <div class="printer-grid" id="student-printer-grid">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
-
-                <section class="card glass-card action-card upload-card" onclick="openUploadModal()">
-                    <i class="fa-solid fa-upload card-icon"></i>
-                    <h3>Upload 3D File</h3>
-                    <p>(STL/OBJ/etc.)</p>
-                </section>
-
-                <section class="card glass-card action-card" onclick="document.querySelector('.data-table').scrollIntoView({behavior: 'smooth'})">
-                    <i class="fa-solid fa-file-invoice card-icon"></i>
-                    <h3>View My Submissions</h3>
-                    <p>Check Status</p>
-                </section>
-
-                <section class="card glass-card action-card messages-card" onclick="openMessagesModal()">
-                    <i class="fa-solid fa-comment-sms card-icon"></i>
-                    <h3>Messages</h3>
-                    <p>SMS Status Notifications</p>
-                    <span class="badge" id="student-msg-badge">0</span>
-                </section>
-
-                <section class="card glass-card action-card" onclick="openGuidelinesModal()">
-                    <i class="fa-solid fa-circle-info card-icon"></i>
-                    <h3>Lab Guidelines</h3>
-                    <p>& Instructions</p>
-                </section>
-            </div>
-
-            <section class="card glass-card mt-4">
-                <div class="card-header">
-                    <h2><i class="fa-solid fa-list-check"></i> Recent Submissions</h2>
-                </div>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Job ID</th>
-                                <th>File Name</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="student-submissions-list">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Upload Modal -->
-    <div class="modal" id="upload-modal">
-        <div class="modal-content glass-card">
-            <div class="modal-header">
-                <h2>Upload 3D Print Request</h2>
-                <button class="close-btn" onclick="closeUploadModal()"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <form id="upload-form" onsubmit="submitJob(event)">
-                    <!-- Name and Phone removed: automatically retrieved from session securely -->
-                    <div class="form-group">
-                        <label>3D File (STL only)</label>
-                        <input type="file" id="upload-file" required accept=".stl">
-                    </div>
-                    <div class="form-group">
-                        <label>Material & Notes</label>
-                        <textarea id="upload-notes" placeholder="PLA, White, 20% Infill..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-full"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
-                </form>
-            </div>
+        <div class="profile-card" style="margin-top:1rem">
+            <div class="section-title"><i class="fa-solid fa-key"></i> Change Password</div>
+            <div class="form-group"><label>CURRENT PASSWORD</label><input type="password" id="p-curr-pass" placeholder="••••••••"></div>
+            <div class="form-group"><label>NEW PASSWORD</label><input type="password" id="p-new-pass" placeholder="••••••••"></div>
+            <div id="pass-msg" style="display:none;margin-bottom:0.75rem;font-size:0.85rem"></div>
+            <button class="btn-ghost" onclick="changePassword()">Update Password</button>
         </div>
     </div>
 
-    <!-- Messages Modal -->
-    <div class="modal" id="messages-modal">
-        <div class="modal-content glass-card">
-            <div class="modal-header">
-                <h2>Messages (SMS)</h2>
-                <button class="close-btn" onclick="closeMessagesModal()"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body" id="messages-list" style="max-height: 300px; overflow-y: auto;">
-                <!-- Messages -->
-            </div>
-        </div>
-    </div>
+</main>
 
-    <!-- Guidelines Modal -->
-    <div class="modal" id="guidelines-modal">
-        <div class="modal-content glass-card">
-            <div class="modal-header">
-                <h2>Lab Guidelines</h2>
-                <button class="close-btn" onclick="closeGuidelinesModal()"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <ul style="padding-left: 20px; line-height: 1.6;">
-                    <li>Only .stl files are allowed.</li>
-                    <li>Ensure your model is properly scaled.</li>
-                    <li>Jobs will be reviewed before printing.</li>
-                    <li>You will receive SMS notifications for status updates.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
+<div id="toast-container"></div>
 
-    <div id="toast-container"></div>
-    <script src="{{ url_for('static', filename='student.js') }}"></script>
+<script src="{{ url_for('static', filename='student.js') }}"></script>
 </body>
 </html>
