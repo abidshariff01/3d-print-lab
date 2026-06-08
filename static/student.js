@@ -141,6 +141,29 @@ async function loadJobs() {
 }
 
 // ─── UPLOAD ──────────────────────────────────────────────────────────────────
+function updateMaterials() {
+    const printer = document.getElementById('job-printer').value;
+    const materialSelect = document.getElementById('job-material');
+    if (!materialSelect) return;
+    const currentVal = materialSelect.value;
+    
+    let materials = [];
+    if (printer === 'Creality Ender 3' || printer === 'Bambu Lab A1 Mini' || printer === 'Bambu Lab A1 Combo') {
+        materials = ['PLA'];
+    } else if (printer === 'Create Bot F430') {
+        materials = ['PEEK', 'ABS', 'TPU', 'PETG', 'Carbon Fibre'];
+    } else if (printer === 'Phrozen Sonic' || printer === 'Mighty 14K') {
+        materials = ['Resin'];
+    } else {
+        materials = ['PLA', 'ABS', 'PETG', 'TPU', 'PEEK', 'Carbon Fibre', 'Resin'];
+    }
+    
+    materialSelect.innerHTML = materials.map(m => `<option>${m}</option>`).join('');
+    if (materials.includes(currentVal)) {
+        materialSelect.value = currentVal;
+    }
+}
+
 function handleFileSelect(input) {
     if (!input.files.length) return;
     const file = input.files[0];
@@ -283,3 +306,4 @@ function showToast(title, msg) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 loadDashboardData();
 fetch('/api/printers').then(r => r.json()).then(data => { printerState = data; renderPrinters(); });
+updateMaterials();
