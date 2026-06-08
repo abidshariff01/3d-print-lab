@@ -210,6 +210,7 @@ def submit_job():
     student = conn.execute('SELECT name FROM students WHERE id=?', (sid,)).fetchone()
     conn.close()
     socketio.emit('notification', {'title': 'New Job', 'message': f"{student['name']} submitted {data.get('file', 'a file')}", 'target': 'admin'})
+    socketio.emit('jobs_updated')
     return jsonify({'success': True, 'job_id': job_id})
 
 @app.route('/api/student/notifications')
