@@ -1,5 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from flask_socketio import SocketIO, emit
@@ -14,7 +12,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Secure secret key for sessions
 app.config['SECRET_KEY'] = 'c28x9VbN$mP!qWz3rTyU&iOk' 
-socketio = SocketIO(app, manage_session=False) # Access flask session
+socketio = SocketIO(app, manage_session=False, async_mode='threading')
 
 ADMIN_PASSWORD = 'L4b$M4n4g3r!9XqW2z'
 
