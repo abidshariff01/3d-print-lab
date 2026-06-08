@@ -135,6 +135,10 @@ def student_dashboard():
     conn = get_db()
     student = conn.execute('SELECT * FROM students WHERE id=?', (session['student_id'],)).fetchone()
     conn.close()
+    if student is None:
+        # Session is stale (DB was reset) — clear it and send back to login
+        session.clear()
+        return redirect(url_for('index'))
     return render_template('student.html', student=student)
 
 @app.route('/logout')
