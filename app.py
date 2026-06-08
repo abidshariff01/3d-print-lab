@@ -66,11 +66,16 @@ init_db()
 # ─── PRINTER STATE ────────────────────────────────────────────────────────────
 
 printers = [
-    {"id": 1, "name": "Printer 1", "model": "Ender 3 Pro · FDM", "materials": "PLA · ABS · PETG", "max_size": "Max: 220×220×250mm", "status": "free", "currentJob": None},
-    {"id": 2, "name": "Printer 2", "model": "Bambu X1C · Multi material", "materials": "PLA · PETG · ABS · TPU", "max_size": "Max: 256×256×256mm", "status": "free", "currentJob": None},
-    {"id": 3, "name": "Printer 3", "model": "Ender 5 Plus · FDM", "materials": "PLA · PETG · ABS", "max_size": "Max: 350×350×400mm", "status": "free", "currentJob": None},
-    {"id": 4, "name": "Printer 4", "model": "Prusa i3 MK3 · FDM", "materials": "PLA · ABS · PETG · TPU", "max_size": "Max: 250×210×210mm", "status": "free", "currentJob": None}
+    # ── FDM Printers ──────────────────────────────────────────────────────────
+    {"id": 1, "name": "Creality Ender 3",   "type": "FDM", "model": "FDM · Cartesian",           "materials": "PLA only",                                 "max_size": "Max: 25×25×25 cm", "tag": "",             "status": "free", "currentJob": None},
+    {"id": 2, "name": "Bambu Lab A1 Mini",  "type": "FDM", "model": "FDM · CoreXY",               "materials": "PLA only",                                 "max_size": "Max: 18×18×18 cm", "tag": "⚡ Fast Print", "status": "free", "currentJob": None},
+    {"id": 3, "name": "Bambu Lab A1 Combo", "type": "FDM", "model": "FDM · CoreXY · Multi-Color", "materials": "PLA only",                                 "max_size": "Max: 25×25×25 cm", "tag": "⚡ Fast Print", "status": "free", "currentJob": None},
+    {"id": 4, "name": "Create Bot F430",    "type": "FDM", "model": "FDM · Industrial",           "materials": "PEEK · ABS · TPU · PETG · Carbon Fibre",   "max_size": "Max: 30×25×30 cm", "tag": "🏭 Industrial", "status": "free", "currentJob": None},
+    # ── SLA Printers ──────────────────────────────────────────────────────────
+    {"id": 5, "name": "Phrozen Sonic",      "type": "SLA", "model": "SLA · Resin",                "materials": "Resin (Photopolymer)",                     "max_size": "Max: 18×15 cm",    "tag": "🔬 Resin",     "status": "free", "currentJob": None},
+    {"id": 6, "name": "Mighty 14K",         "type": "SLA", "model": "SLA · Resin · 14K",          "materials": "Resin (Photopolymer)",                     "max_size": "Max: 18×15 cm",    "tag": "🔬 Resin",     "status": "free", "currentJob": None},
 ]
+
 
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 

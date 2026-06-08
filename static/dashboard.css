@@ -196,6 +196,22 @@ body {
 .dot-occ  { background: #f85149; }
 
 .printer-full-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.printer-type-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b949e;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.printer-full-grid-inner {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;

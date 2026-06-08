@@ -139,38 +139,25 @@
                             <option>ABS</option>
                             <option>PETG</option>
                             <option>TPU</option>
+                            <option>PEEK</option>
+                            <option>Carbon Fibre</option>
                             <option>Resin</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>LAYER HEIGHT</label>
-                        <select id="job-layer">
-                            <option>0.1mm (Fine)</option>
-                            <option selected>0.2mm (Standard)</option>
-                            <option>0.3mm (Draft)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label>INFILL %</label>
-                        <select id="job-infill">
-                            <option>10%</option>
-                            <option>15%</option>
-                            <option selected>20%</option>
-                            <option>30%</option>
-                            <option>50%</option>
-                            <option>100%</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>PREFERRED PRINTER</label>
                         <select id="job-printer">
                             <option>Any available</option>
-                            <option>Printer 1</option>
-                            <option>Printer 2</option>
-                            <option>Printer 3</option>
-                            <option>Printer 4</option>
+                            <optgroup label="── FDM Printers ──">
+                                <option>Creality Ender 3</option>
+                                <option>Bambu Lab A1 Mini</option>
+                                <option>Bambu Lab A1 Combo</option>
+                                <option>Create Bot F430</option>
+                            </optgroup>
+                            <optgroup label="── SLA Printers ──">
+                                <option>Phrozen Sonic</option>
+                                <option>Mighty 14K</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>

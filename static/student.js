@@ -73,22 +73,44 @@ function renderPrinters() {
 function renderFullPrinters() {
     const grid = document.getElementById('full-printer-grid');
     if (!grid || !printerState.length) return;
-    grid.innerHTML = printerState.map(p => {
+
+    // Group by type
+    const fdm = printerState.filter(p => p.type === 'FDM');
+    const sla = printerState.filter(p => p.type === 'SLA');
+
+    const renderCard = p => {
         const isFree = p.status === 'free';
         return `
         <div class="printer-full-card">
             <div class="printer-full-header">
-                <div><span class="printer-mini-dot ${isFree ? 'dot-free' : 'dot-occ'}"></span><span class="printer-full-name">${p.name}</span></div>
+                <div style="display:flex;align-items:center;gap:0.5rem">
+                    <span class="printer-mini-dot ${isFree ? 'dot-free' : 'dot-occ'}"></span>
+                    <span class="printer-full-name">${p.name}</span>
+                    ${p.tag ? `<span style="font-size:0.72rem;background:#21262d;padding:0.15rem 0.5rem;border-radius:10px;color:#8b949e">${p.tag}</span>` : ''}
+                </div>
                 <span class="printer-mini-status ${isFree ? 'status-free-badge' : 'status-occ-badge'}">${isFree ? 'FREE' : 'OCCUPIED'}</span>
             </div>
             <div class="printer-full-model">${p.model}</div>
-            <div class="printer-specs">${p.materials}<br>${p.max_size}</div>
-            <button class="btn-orange-full-printer" ${!isFree ? 'disabled' : ''} onclick="showPage('upload')">
-                ${isFree ? 'Submit Job' : 'Currently Busy'}
-            </button>
+            <div class="printer-specs">
+                <span style="color:#8b949e;font-size:0.8rem">🧵 ${p.materials}</span><br>
+                <span style="color:#8b949e;font-size:0.8rem">📐 ${p.max_size}</span>
+            </div>
+            ${!isFree ? `<div style="margin-top:0.5rem;font-size:0.8rem;color:#f85149"><i class="fa-solid fa-ban"></i> Currently busy — Job ${p.currentJob || ''}</div>` : ''}
         </div>`;
-    }).join('');
+    };
+
+    let html = '';
+    if (fdm.length) {
+        html += `<div class="printer-type-label"><i class="fa-solid fa-industry"></i> FDM Printers</div>`;
+        html += `<div class="printer-full-grid-inner">${fdm.map(renderCard).join('')}</div>`;
+    }
+    if (sla.length) {
+        html += `<div class="printer-type-label" style="margin-top:1.5rem"><i class="fa-solid fa-flask"></i> SLA Resin Printers</div>`;
+        html += `<div class="printer-full-grid-inner">${sla.map(renderCard).join('')}</div>`;
+    }
+    grid.innerHTML = html;
 }
+
 
 // ─── JOBS ────────────────────────────────────────────────────────────────────
 async function fetchJobs() {
