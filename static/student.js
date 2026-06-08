@@ -196,12 +196,16 @@ async function submitJob() {
     const fileName = fileInput.files[0].name;
     if (!fileName.toLowerCase().endsWith('.stl')) return showError('upload-error', 'Only .stl files are allowed!');
 
+    const notesInput = document.getElementById('job-notes').value;
+    const preferredPrinter = document.getElementById('job-printer').value;
+    const notes = preferredPrinter !== 'Any available' 
+        ? `[Preferred: ${preferredPrinter}] ${notesInput}`.trim()
+        : notesInput;
+
     const body = {
         file: document.getElementById('job-project-name').value || fileName,
         material: document.getElementById('job-material').value,
-        layer_height: document.getElementById('job-layer').value,
-        infill: document.getElementById('job-infill').value,
-        notes: document.getElementById('job-notes').value
+        notes: notes
     };
 
     const res = await fetch('/api/student/jobs/submit', {
