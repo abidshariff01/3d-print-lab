@@ -140,9 +140,10 @@ async function loadJobs() {
     </table>`;
 }
 
-// ─── UPLOAD ──────────────────────────────────────────────────────────────────
 function updateMaterials() {
-    const printer = document.getElementById('job-printer').value;
+    const printerSelect = document.getElementById('job-printer');
+    if (!printerSelect) return;
+    const printer = printerSelect.value;
     const materialSelect = document.getElementById('job-material');
     if (!materialSelect) return;
     const currentVal = materialSelect.value;
