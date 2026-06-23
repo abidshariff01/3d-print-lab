@@ -393,4 +393,4 @@ def handle_toggle_printer(data):
     socketio.emit('state_update', {'printers': printers})
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
